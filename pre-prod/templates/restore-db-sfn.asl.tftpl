@@ -1,0 +1,117 @@
+{
+  "Comment": "Database Snapshot Restore and Notification",
+  "StartAt": "Lambda Invoke",
+  "States": {
+    "Lambda Invoke": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "OutputPath": "$.Payload",
+      "Parameters": {
+        "Payload.$": "$",
+        "FunctionName": "${LAMBDA_FUNCTION_ARN}"
+      },
+      "Retry": [
+        {
+          "ErrorEquals": [
+            "Lambda.ServiceException",
+            "Lambda.AWSLambdaException",
+            "Lambda.SdkClientException",
+            "Lambda.TooManyRequestsException"
+          ],
+          "IntervalSeconds": 1,
+          "MaxAttempts": 3,
+          "BackoffRate": 2
+        }
+      ],
+      "Next": "Choice"
+    },
+    "Choice": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Not": {
+            "Variable": "$.HTTPStatusCode",
+            "NumericEquals": 200
+          },
+          "Next": "SendFailureNotification",
+          "Comment": "Restore failed"
+        }
+      ],
+      "Default": "CheckRestoreStatus"
+    },
+    "SendFailureNotification": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${SNS_TOPIC_ARN}",
+        "Message": "Database instance restore failed!"
+      },
+      "Next": "Fail"
+    },
+    "Fail": {
+      "Type": "Fail"
+    },
+    "CheckRestoreStatus": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::aws-sdk:rds:describeDBInstances",
+      "Parameters": {
+        "DbInstanceIdentifier.$": "$.DBInstanceArn"
+      },
+      "ResultPath": "$.dbInstance",
+      "Next": "EvaluateRestoreStatus"
+    },
+    "EvaluateRestoreStatus": {
+      "Type": "Choice",
+      "Choices": [
+        {
+          "Or": [
+            {
+              "Variable": "$.dbInstance.DbInstances[0].DbInstanceStatus",
+              "StringEquals": "failed"
+            },
+            {
+              "Variable": "$.dbInstance.DbInstances[0].DbInstanceStatus",
+              "StringEquals": "restore-error"
+            },
+            {
+              "Or": [
+                {
+                  "Variable": "$.dbInstance.DbInstances[0].DbInstanceStatus",
+                  "StringEquals": "insufficient-capacity"
+                },
+                {
+                  "Variable": "$.dbInstance.DbInstances[0].DbInstanceStatus",
+                  "StringEquals": "inaccessible-encryption-credentials"
+                }
+              ]
+            }
+          ],
+          "Next": "SendFailureNotification"
+        },
+        {
+          "Variable": "$.dbInstance.DbInstances[0].DbInstanceStatus",
+          "StringEquals": "available",
+          "Next": "SendSuccessNotification"
+        }
+      ],
+      "Default": "WaitForRestoreCompletion"
+    },
+    "WaitForRestoreCompletion": {
+      "Type": "Wait",
+      "Seconds": 60,
+      "Next": "CheckRestoreStatus"
+    },
+    "SendSuccessNotification": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::sns:publish",
+      "Parameters": {
+        "TopicArn": "${SNS_TOPIC_ARN}",
+        "Message": "Database instance restore completed successfully!"
+      },
+      "Next": "Success"
+    },
+    "Success": {
+      "Type": "Succeed"
+    }
+  }
+}
