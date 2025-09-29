@@ -1,12 +1,12 @@
-# AWS Backup Cross-Account Copy Solution
+# Copy Amazon RDS production database to a lower environment using AWS Backup and AWS Step Functions
 
-This repository contains Infrastructure as Code (IaC) for copying data from production to pre-prod account in an automated way using AWS Backup as a utility tool. The solution focuses on RDS Database as an example.
+This repository contains Infrastructure as Code (IaC) for copying data from production to pre-production account in an automated way using AWS Backup as a utility tool. The solution focuses on RDS Database as an example.
 
 ## Introduction
 
 Most customers rely on automated testing in the pre-prod environment to improve the reliability and stability of the software being released. But for many applications, writing and running these tests effectively requires production or production like data.
 
-Copying data from Prod to pre-prod is usually trickier than it sounds. This is because prod and pre-prod are usually different accounts without any network connectivity between them. And following the best practices, there is also stricter level of access controls put in place for Production account and its resources. Because of these reasons, it may not be possible to run a data sync tool between two environments.
+Copying data from Prod to pre-prod is usually complicated than it sounds. This is because prod and pre-prod are usually different accounts without any network connectivity between them. And following the best practices, there is also stricter level of access controls put in place for Production account and its resources. Because of these reasons, it may not be possible to run a data sync tool between two environments.
 
 So in this repo, we will present a way to setup automated copying of data from Production to pre-prod environment periodically using AWS Backup. For simplicity, we will focus on Amazon RDS Instances, although the solution could be extended to many other databases supported by the AWS Backup like Amazon DynamoDB, Amazon Aurora Clusters etc.
 
@@ -36,7 +36,7 @@ The solution implements the following workflow for automated cross-account backu
      - Cross-account copy configuration to pre-production account
 
 2. **Backup Process**
-   - AWS Backup creates snapshots of selected RDS instances (based on tags)
+   - At the specified schedule, AWS Backup creates snapshots of selected RDS instances (based on tags)
    - Backup copies (Recovery Points) are automatically transferred to pre-production account's Backup Vault
 
 3. **Restore Automation in pre-prod account**
@@ -84,21 +84,15 @@ aws-backup-blogpost/
    pre_prod_region = "eu-west-1"
 ```
 
-4. Assume the credentials by setting the below variables for the Production AWS account.
-
-```bash
-AWS_ACCESS_KEY_ID=xxxxxxxxxxxxxxx
-AWS_SESSION_TOKEN=AWS_ACCESS_KEY_ID=xxxxxxxxxxxxxxx
-AWS_SECRET_ACCESS_KEY=xxxxxxxxxxxxxxx
-```
-
-5. Initialize Terraform:
+4. Initialize Terraform:
+Note: Make sure that you have exported the credentials for correct AWS account (prod account)
+before running the terraform commands below.
 
 ```bash
 terraform init
 ```
 
-6. Apply the configuration:
+5. Apply the configuration:
 ```bash
 terraform plan
 terraform apply
@@ -117,21 +111,15 @@ terraform apply
    rds_db_subnets = ["subnet-xxxxx", "subnet-xxxxx", "subnet-xxxxxx"]
 ```
 
-4. Assume the credentials by setting the below variables for the Pre-production AWS account.
-
-```bash
-AWS_ACCESS_KEY_ID=xxxxxxxxxxxxxxx
-AWS_SESSION_TOKEN=AWS_ACCESS_KEY_ID=xxxxxxxxxxxxxxx
-AWS_SECRET_ACCESS_KEY=xxxxxxxxxxxxxxx
-```
-
-5. Initialize Terraform:
+4. Initialize Terraform:
+Note: Make sure that you have exported the credentials for prod account before
+running the terraform commands below.
 
 ```bash
 terraform init
 ```
 
-6. Apply the configuration:
+5. Apply the configuration:
 ```bash
 terraform plan
 terraform apply
